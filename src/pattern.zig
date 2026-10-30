@@ -101,7 +101,7 @@ fn validate(comptime p: Pattern) void {
 
     const reveal = struct {
         fn f(party: usize, k: Key, local: *[2][2]bool, remote: *[2][2]bool) void {
-            const slot = @intFromEnum(k);
+            const slot = @backingInt(k);
             local[party][slot] = true;
             remote[1 - party][slot] = true;
         }
@@ -177,13 +177,13 @@ fn validate(comptime p: Pattern) void {
                 has_key = true;
                 for (0..2) |who| {
                     const local, const remote = dhRoles(tok, who);
-                    if (!has_local[who][@intFromEnum(local)])
+                    if (!has_local[who][@backingInt(local)])
                         @compileError(p.name ++ ": \"" ++ @tagName(tok) ++
                             "\" needs a local " ++ @tagName(local) ++ " key that party does not have");
-                    if (!has_remote[who][@intFromEnum(remote)])
+                    if (!has_remote[who][@backingInt(remote)])
                         @compileError(p.name ++ ": \"" ++ @tagName(tok) ++
                             "\" needs a remote " ++ @tagName(remote) ++ " key that has not been received");
-                    const slot = @intFromEnum(remote);
+                    const slot = @backingInt(remote);
                     switch (local) {
                         .static => static_dh[who][slot] = true,
                         .ephemeral => ephemeral_dh[who][slot] = true,

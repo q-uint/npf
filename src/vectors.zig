@@ -398,9 +398,9 @@ test "noise-c fallback vectors" {
 /// carry more than one psk modifier, which section 9.2 permits and which no
 /// other vector file we have exercises.
 const multi_psk_names = [_][]const u8{
-    "NNpsk0+psk2",  "NXpsk0+psk1+psk2", "XNpsk1+psk3",      "XKpsk0+psk3",
-    "KNpsk1+psk2",  "KKpsk0+psk2",      "INpsk1+psk2",      "IKpsk0+psk2",
-    "IXpsk0+psk2",  "XXpsk0+psk1",      "XXpsk0+psk2",      "XXpsk0+psk3",
+    "NNpsk0+psk2",           "NXpsk0+psk1+psk2", "XNpsk1+psk3", "XKpsk0+psk3",
+    "KNpsk1+psk2",           "KKpsk0+psk2",      "INpsk1+psk2", "IKpsk0+psk2",
+    "IXpsk0+psk2",           "XXpsk0+psk1",      "XXpsk0+psk2", "XXpsk0+psk3",
     "XXpsk0+psk1+psk2+psk3",
 };
 

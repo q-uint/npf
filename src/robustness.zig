@@ -54,7 +54,10 @@ fn hammer(comptime p: Pattern) !void {
     // Truncation at every length.
     for (0..n) |cut| {
         var victim = try responderFor(p, r_s, if (r_knows) i_s.public else null, r_rng.rng());
-        if (p.psk) { victim.psks[0] = @splat(42); victim.psks_len = 1; }
+        if (p.psk) {
+            victim.psks[0] = @splat(42);
+            victim.psks_len = 1;
+        }
         _ = victim.readMessage(buf[0..cut], &plain) catch continue;
     }
 
@@ -65,14 +68,20 @@ fn hammer(comptime p: Pattern) !void {
         corrupt[pos] ^= 0x80;
 
         var victim = try responderFor(p, r_s, if (r_knows) i_s.public else null, r_rng.rng());
-        if (p.psk) { victim.psks[0] = @splat(42); victim.psks_len = 1; }
+        if (p.psk) {
+            victim.psks[0] = @splat(42);
+            victim.psks_len = 1;
+        }
         _ = victim.readMessage(corrupt[0..n], &plain) catch continue;
     }
 
     // Oversized input, and the exact boundary of the section 3 limit.
     var big: [handshake.HandshakeState(Suite).max_message_len + 2]u8 = @splat(0);
     var victim = try responderFor(p, r_s, if (r_knows) i_s.public else null, r_rng.rng());
-    if (p.psk) { victim.psks[0] = @splat(42); victim.psks_len = 1; }
+    if (p.psk) {
+        victim.psks[0] = @splat(42);
+        victim.psks_len = 1;
+    }
     try std.testing.expectError(
         handshake.Error.MessageTooLong,
         victim.readMessage(&big, &plain),

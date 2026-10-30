@@ -17,6 +17,9 @@ pub const Error = state.Error || error{
     MissingPsk,
     TooManyPsks,
     RemoteKeyAlreadySet,
+    /// Only a custom DH function that rejects invalid public keys raises
+    /// this. The X25519 and X448 here absorb them instead.
+    InvalidRemoteKey,
     FallbackRequired,
     InvalidPipeKind,
 };
@@ -51,6 +54,40 @@ pub const Rng = struct {
     }
 };
 
+/// Binds a DH function, a cipher and a hash into the algorithm set a
+/// handshake runs on (section 4). `Protocol` builds one from a protocol
+/// name; build one by hand to run an algorithm this library does not ship.
+///
+/// All three are types, not values, and each must declare a `name`, which
+/// is the section 8.2 token for the algorithm. The three join with
+/// underscores into the protocol name that seeds the handshake hash, so a
+/// custom algorithm needs the same name on both ends.
+///
+/// `D`, the DH function of section 4.1:
+///   - `dhlen: usize`, 32 or more
+///   - `KeyPair`, with fields `public: [dhlen]u8` and `secret: [dhlen]u8`
+///     and a `fromSecret(secret: [dhlen]u8) KeyPair`. The secret is zeroed
+///     in place, so it has to be the array itself, not a handle to one.
+///   - `dh(kp: KeyPair, pk: [dhlen]u8) [dhlen]u8`, which may return an
+///     error union instead; see `Error.InvalidRemoteKey`.
+///
+/// `C`, the cipher function of section 4.2, keyed by the 32 bytes the spec
+/// fixes and nonced by a 64 bit counter it formats itself:
+///   - `key_len: usize` and `tag_len: usize`
+///   - `encrypt(k: [key_len]u8, n: u64, ad: []const u8, pt: []const u8,
+///     out: []u8) void`, writing `pt.len + tag_len` bytes
+///   - `decrypt(k: [key_len]u8, n: u64, ad: []const u8, ct: []const u8,
+///     out: []u8) error{AuthenticationFailed}!void`, writing
+///     `ct.len - tag_len` bytes
+///   - `rekey(k: [key_len]u8) [key_len]u8`
+///
+/// `H`, the hash function of section 4.3:
+///   - `hashlen: usize`, 32 or 64, and `Digest = [hashlen]u8`
+///   - `hash(data: []const u8) Digest`
+///   - `hashCat(a: []const u8, b: []const u8) Digest`, the hash of the two
+///     halves concatenated, without building the concatenation
+///   - `hkdf(ck: Digest, ikm: []const u8, comptime outputs: usize)
+///     [outputs]Digest` for one to three outputs (section 5.1)
 pub fn Suite(comptime D: type, comptime C: type, comptime H: type) type {
     return struct {
         pub const Dh = D;
@@ -314,9 +351,19 @@ pub fn HandshakeState(comptime S: type) type {
                 .ee => Error.MissingRemoteEphemeral,
                 else => if ((tok == .es) == self.initiator) Error.MissingRemoteStatic else Error.MissingRemoteEphemeral,
             };
-            var shared = Dh.dh(kp, pk);
+            var shared = try callDh(kp, pk);
             defer std.crypto.secureZero(u8, &shared);
             self.ss.mixKey(&shared);
+        }
+
+        /// A DH function may reject an invalid remote key rather than absorb
+        /// it the way the X25519 here does, which returns zeros. Both shapes
+        /// satisfy the interface; a rejection becomes `InvalidRemoteKey`.
+        fn callDh(kp: Dh.KeyPair, pk: [dhlen]u8) Error![dhlen]u8 {
+            const Ret = @typeInfo(@TypeOf(Dh.dh)).@"fn".return_type.?;
+            if (@typeInfo(Ret) == .error_union)
+                return Dh.dh(kp, pk) catch return Error.InvalidRemoteKey;
+            return Dh.dh(kp, pk);
         }
 
         /// Section 9.2 allows a `psk` token to appear more than once. Each
@@ -421,7 +468,6 @@ pub fn HandshakeState(comptime S: type) type {
         }
     };
 }
-
 
 const TestSuite = Suite(crypto.X25519, crypto.ChaChaPoly, crypto.Sha256);
 const Hs = HandshakeState(TestSuite);
